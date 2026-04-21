@@ -1,0 +1,60 @@
+.wb {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.wb__track {
+  height: 14px;
+  border-radius: 7px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.wb__fill {
+  height: 100%;
+  border-radius: 7px;
+  background: linear-gradient(90deg, #7c4e1e, #c07830);
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.wb__fill--stable {
+  background: linear-gradient(90deg, #2a6b2a, #4caf50);
+  animation: wb-pulse 1s ease-in-out infinite;
+}
+
+.wb__fill--overshoot {
+  background: linear-gradient(90deg, #8b1a1a, #e53935);
+}
+
+@keyframes wb-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.7; }
+}
+
+.wb__readout {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.wb__value {
+  font-size: 2.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.wb__badge {
+  font-size: 0.85rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  background: #2d5a2d;
+  color: #7ed87e;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.wb__badge--visible {
+  opacity: 1;
+}
