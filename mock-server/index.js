@@ -6,6 +6,38 @@ let weight = 0;
 let oled = { line1: '', line2: '' };
 let session = { active: false, recipe_id: null, step: 0 };
 let stepLogs = [];
+let brewHistory = [
+  {
+    id: 'mock-1',
+    recipe_id: 'espresso',
+    recipe_name: 'Espresso',
+    completed: true,
+    started_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    completed_at: new Date(Date.now() - 2 * 60 * 60 * 1000 + 90000).toISOString(),
+    steps: [{ step_name: 'Tamp', target_weight_g: 36, actual_weight_g: 35.8 }],
+  },
+  {
+    id: 'mock-2',
+    recipe_id: 'v60',
+    recipe_name: 'V60',
+    completed: true,
+    started_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    completed_at: new Date(Date.now() - 24 * 60 * 60 * 1000 + 200000).toISOString(),
+    steps: [
+      { step_name: 'Bloom', target_weight_g: 50, actual_weight_g: 51.2 },
+      { step_name: 'Pour',  target_weight_g: 200, actual_weight_g: 198.5 },
+    ],
+  },
+  {
+    id: 'mock-3',
+    recipe_id: 'aeropress',
+    recipe_name: 'AeroPress',
+    completed: false,
+    started_at: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+    completed_at: null,
+    steps: [{ step_name: 'Brew', target_weight_g: 220, actual_weight_g: 180.0 }],
+  },
+];
 
 setInterval(() => {
   if (session.active && weight < 36) {
@@ -141,7 +173,22 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'POST' && url === '/brew/complete/') {
     session.active = false;
+    const recipe = RECIPES.find(r => r.id === session.recipe_id);
+    const entry = {
+      id: `brew-${Date.now()}`,
+      recipe_id: session.recipe_id,
+      recipe_name: recipe?.name ?? session.recipe_id,
+      completed: true,
+      started_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+      steps: [...stepLogs],
+    };
+    brewHistory.unshift(entry);
     return send(res, 200, { ok: true, session, step_logs: stepLogs });
+  }
+
+  if (req.method === 'GET' && url === '/brews/history/') {
+    return send(res, 200, [...brewHistory]);
   }
 
   send(res, 404, { error: 'not found' });
