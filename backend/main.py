@@ -1,8 +1,8 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from database import recipes
-from models import Recipe
+from database import recipes, rfid_mappings
+from models import Recipe, RfidMapping, RfidMappingUpdate, RfidPayload
 
 app = FastAPI(title="Coffee Brew API")
 
@@ -15,9 +15,9 @@ app.add_middleware(
 )
 
 # In-memory runtime state
-active_brew_session = None
+current_session: dict | None = None
 live_weight: float = 0.0
-oled_display: str = ""
+oled_message: str = ""
 rfid_tag: str | None = None
 
 
@@ -70,3 +70,73 @@ async def delete_recipe(recipe_id: str):
     result = await recipes.delete_one({"id": recipe_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Recipe not found")
+
+
+# --- RFID Mapping CRUD ---
+
+@app.get("/rfid-mappings/")
+async def list_rfid_mappings():
+    result = []
+    async for doc in rfid_mappings.find():
+        result.append(fix_id(doc))
+    return result
+
+
+@app.post("/rfid-mappings/", status_code=201)
+async def create_rfid_mapping(mapping: RfidMapping):
+    mapping.uid = mapping.uid.upper()
+    if await rfid_mappings.find_one({"uid": mapping.uid}):
+        raise HTTPException(status_code=400, detail="Mapping for this UID already exists")
+    await rfid_mappings.insert_one(mapping.model_dump())
+    return mapping
+
+
+@app.put("/rfid-mappings/{rfid}")
+async def update_rfid_mapping(rfid: str, body: RfidMappingUpdate):
+    result = await rfid_mappings.update_one(
+        {"uid": rfid.upper()}, {"$set": {"recipe_id": body.recipe_id}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Mapping not found")
+    return {"uid": rfid.upper(), "recipe_id": body.recipe_id}
+
+
+@app.delete("/rfid-mappings/{rfid}", status_code=204)
+async def delete_rfid_mapping(rfid: str):
+    result = await rfid_mappings.delete_one({"uid": rfid.upper()})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Mapping not found")
+
+
+# --- Recipe select (ESP32 endpoint) ---
+
+@app.post("/recipe/select/")
+async def select_recipe(body: RfidPayload):
+    global current_session, oled_message
+
+    uid = body.uid.upper()
+    mapping = await rfid_mappings.find_one({"uid": uid})
+    if not mapping:
+        raise HTTPException(status_code=404, detail="No recipe mapped to this card")
+
+    recipe = await recipes.find_one({"id": mapping["recipe_id"]})
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Mapped recipe not found")
+
+    first_step = recipe["steps"][0] if recipe.get("steps") else None
+
+    current_session = {
+        "recipe_id": recipe["id"],
+        "recipe_name": recipe["name"],
+        "step_index": 0,
+        "active": True,
+    }
+
+    oled_message = f"{recipe['name']} / {first_step['name'] if first_step else ''}"
+
+    return {
+        "id": recipe["id"],
+        "name": recipe["name"],
+        "first_step": first_step["name"] if first_step else "",
+        "target_weight_g": first_step["target_weight_g"] if first_step else 0,
+    }
