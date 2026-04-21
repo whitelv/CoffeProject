@@ -1,3 +1,5 @@
+from bson import ObjectId
+from bson.errors import InvalidId
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -247,3 +249,31 @@ async def complete_brew():
     step_logs = []
 
     return {"ok": True}
+
+
+# --- Brew history ---
+
+@app.get("/brews/history/")
+async def list_brew_history():
+    result = []
+    async for doc in brew_sessions.find().sort("completed_at", -1).limit(50):
+        result.append(fix_id(doc))
+    return result
+
+
+@app.get("/brews/history/{session_id}")
+async def get_brew_session(session_id: str):
+    try:
+        oid = ObjectId(session_id)
+    except InvalidId:
+        raise HTTPException(status_code=404, detail="Brew session not found")
+    doc = await brew_sessions.find_one({"_id": oid})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Brew session not found")
+    return fix_id(doc)
+
+
+@app.delete("/brews/history/")
+async def clear_brew_history():
+    await brew_sessions.delete_many({})
+    return {"message": "History cleared"}
