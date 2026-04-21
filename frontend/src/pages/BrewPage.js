@@ -1,5 +1,6 @@
 import { getSession, getCurrentStep, getCurrentWeight } from '../api/brew.js';
 import { createPoller } from '../hooks/usePolling.js';
+import { createWeightBar } from '../components/WeightBar.js';
 
 function navigate(path) {
   history.pushState(null, '', path);
@@ -42,23 +43,9 @@ function stepCard(step) {
   `;
 }
 
-function weightSection(weight, target) {
-  const pct = target > 0 ? Math.min(100, (weight / target) * 100) : 0;
-  return `
-    <div class="weight-section">
-      <div class="weight-bar-wrap">
-        <div class="weight-bar" style="width: ${pct}%"></div>
-      </div>
-      <div class="weight-readout">
-        <span class="weight-value" id="weight-value">${weight.toFixed(1)}g</span>
-        <span class="stable-badge" id="stable-badge">Stable ✓</span>
-      </div>
-    </div>
-  `;
-}
 
 export default function render() {
-  let stepPoller, weightPoller;
+  let stepPoller, weightPoller, weightBar;
 
   setTimeout(async () => {
     try {
@@ -76,6 +63,7 @@ export default function render() {
     window.addEventListener('popstate', () => {
       stepPoller?.stop();
       weightPoller?.stop();
+      weightBar?.destroy();
     }, { once: true });
   }, 0);
 
@@ -123,28 +111,7 @@ export default function render() {
         align-self: flex-start;
       }
 
-      .weight-section { display: flex; flex-direction: column; gap: 0.75rem; }
-      .weight-bar-wrap {
-        height: 14px; border-radius: 7px;
-        background: var(--color-border); overflow: hidden;
-      }
-      .weight-bar {
-        height: 100%; background: var(--color-primary);
-        border-radius: 7px; transition: width 0.35s ease;
-      }
-      .weight-readout { display: flex; align-items: center; gap: 0.75rem; }
-      .weight-value {
-        font-size: 2.8rem; font-weight: 700;
-        font-variant-numeric: tabular-nums;
-      }
-      .stable-badge {
-        font-size: 0.85rem; padding: 0.25rem 0.65rem;
-        border-radius: 999px; background: #2d5a2d; color: #7ed87e;
-        opacity: 0; transition: opacity 0.3s;
-      }
-      .stable-badge.visible { opacity: 1; }
-
-      .brew-loading { color: var(--color-text-muted); font-size: 0.95rem; }
+.brew-loading { color: var(--color-text-muted); font-size: 0.95rem; }
     </style>
   `;
 }
@@ -164,8 +131,9 @@ async function refreshStep() {
   stepWrap.innerHTML     = stepCard(data);
 
   if (weightWrap) {
-    if (!weightWrap.innerHTML) {
-      weightWrap.innerHTML = weightSection(0, data.target_weight_g);
+    if (!weightBar) {
+      weightBar = createWeightBar(weightWrap);
+      weightBar.update({ currentWeight: 0, targetWeight: data.target_weight_g, isStable: false });
     }
     weightWrap.dataset.target = data.target_weight_g;
   }
@@ -177,19 +145,10 @@ async function refreshWeight() {
 
   const w = data.weight ?? 0;
   pushWeight(w);
-  const stable = isStable(w);
 
   const weightWrap = document.getElementById('brew-weight-wrap');
-  if (!weightWrap) return;
+  if (!weightWrap || !weightBar) return;
 
   const target = parseFloat(weightWrap.dataset.target ?? 0);
-  const pct    = target > 0 ? Math.min(100, (w / target) * 100) : 0;
-
-  const bar   = weightWrap.querySelector('.weight-bar');
-  const val   = document.getElementById('weight-value');
-  const badge = document.getElementById('stable-badge');
-
-  if (bar)   bar.style.width = `${pct}%`;
-  if (val)   val.textContent = `${w.toFixed(1)}g`;
-  if (badge) badge.classList.toggle('visible', stable);
+  weightBar.update({ currentWeight: w, targetWeight: target, isStable: isStable(w) });
 }
