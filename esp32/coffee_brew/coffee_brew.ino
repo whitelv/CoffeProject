@@ -12,7 +12,6 @@
 #define SS_PIN      5
 #define HX711_DT    4
 #define HX711_SCK   2
-#define BUTTON_PIN  0
 
 // --- OLED ---
 #define SCREEN_WIDTH 128
@@ -36,17 +35,28 @@ enum State { WAIT_RECIPE, BREWING, COMPLETE };
 State state = WAIT_RECIPE;
 
 // --- Brew session ---
-int   currentStep  = 0;
-float targetWeight = 0.0;
 String currentRecipeId = "";
+String currentStepName = "";
+float  targetWeight    = 0.0;
 
-// --- Button debounce ---
-unsigned long lastButtonPress = 0;
-const unsigned long DEBOUNCE_MS = 300;
+// --- Brewing timers ---
+unsigned long lastWeightRead    = 0;
+unsigned long lastWeightStream  = 0;
+unsigned long lastOledUpdate    = 0;
+unsigned long lastStepPoll      = 0;
+unsigned long lastStabilityCheck = 0;
 
-// --- Weight polling ---
-unsigned long lastWeightSend = 0;
-const unsigned long WEIGHT_INTERVAL_MS = 500;
+const unsigned long WEIGHT_READ_MS      = 200;
+const unsigned long WEIGHT_STREAM_MS    = 400;
+const unsigned long OLED_UPDATE_MS      = 200;
+const unsigned long STEP_POLL_MS        = 2000;
+const unsigned long STABILITY_CHECK_MS  = 120;
+
+// --- Weight state ---
+float currentWeight  = 0.0;
+float prevWeight     = -999.0;
+bool  justConfirmed  = false;
+unsigned long confirmedAt = 0;
 
 // -------------------------------------------------------
 
@@ -158,73 +168,95 @@ void handleRFID() {
     return;
   }
 
-  String recipeName = doc["name"] | "";
-  String firstStep  = doc["first_step"] | "";
-
-  currentRecipeId = doc["id"] | "";
-  currentStep     = 0;
-  targetWeight    = 0.0;
+  String recipeName   = doc["name"] | "";
+  String firstStep    = doc["first_step"] | "";
+  currentRecipeId     = doc["id"] | "";
+  currentStepName     = firstStep;
+  targetWeight        = 0.0;
+  currentWeight       = 0.0;
+  prevWeight          = -999.0;
+  justConfirmed       = false;
 
   showOLED(translit(recipeName), "Step 1", translit(firstStep));
 
-  fetchStep();
+  // Reset all brewing timers
+  unsigned long now = millis();
+  lastWeightRead     = now;
+  lastWeightStream   = now;
+  lastOledUpdate     = now;
+  lastStepPoll       = now;
+  lastStabilityCheck = now;
+
   state = BREWING;
 }
 
-void fetchStep() {
-  String resp = httpGet("/api/session");
+// -------------------------------------------------------
+
+void pollStep() {
+  String resp = httpGet("/recipe/current/");
   if (resp.length() == 0) return;
 
-  StaticJsonDocument<512> doc;
+  StaticJsonDocument<256> doc;
   if (deserializeJson(doc, resp) != DeserializationError::Ok) return;
 
-  JsonObject step = doc["current_step"];
-  if (step.isNull()) {
+  if (doc["complete"] | false) {
     state = COMPLETE;
+    showOLED("Brew complete!", "Enjoy your", "coffee!");
     return;
   }
 
-  targetWeight    = step["target_weight_g"] | 0.0f;
-  String stepName = step["name"] | "";
-  String instr    = step["instruction"] | "";
-
-  showOLED(translit(stepName), translit(instr));
+  currentStepName = doc["name"] | currentStepName;
+  targetWeight    = doc["target_weight_g"] | targetWeight;
 }
 
-void sendWeight(float w) {
+void streamWeight() {
   StaticJsonDocument<64> req;
-  req["weight"] = w;
+  req["weight"] = currentWeight;
   String payload;
   serializeJson(req, payload);
-  httpPost("/api/weight", payload);
+
+  String resp = httpPost("/weight/current/", payload);
+  if (resp.length() == 0) return;
+
+  StaticJsonDocument<64> doc;
+  if (deserializeJson(doc, resp) != DeserializationError::Ok) return;
+
+  if (!(doc["active"] | true)) {
+    state = WAIT_RECIPE;
+    showOLED("Scan card", "to select", "recipe");
+  }
 }
 
-void confirmWeight(float w) {
-  StaticJsonDocument<64> req;
-  req["weight"] = w;
-  String payload;
-  serializeJson(req, payload);
-  httpPost("/api/weight/confirm", payload);
+void checkStability() {
+  if (abs(currentWeight - prevWeight) <= 2.0 &&
+      abs(currentWeight - targetWeight) <= 5.0 &&
+      targetWeight > 0.0) {
+
+    StaticJsonDocument<64> req;
+    req["weight"] = currentWeight;
+    String payload;
+    serializeJson(req, payload);
+    httpPost("/weight/confirmed/", payload);
+
+    justConfirmed = true;
+    confirmedAt   = millis();
+    showOLED(translit(currentStepName), "Confirmed!", "");
+  }
+  prevWeight = currentWeight;
 }
 
-void completeStep() {
-  httpPost("/api/brew/step", "{}");
-  currentStep++;
-  fetchStep();
-}
+void updateBrewingOLED() {
+  if (justConfirmed) return; // confirmation message shown — don't overwrite yet
 
-void completeBrew() {
-  httpPost("/api/brew/complete", "{}");
-  state = COMPLETE;
-  showOLED("Brew complete!", "Enjoy your cup");
+  String weightLine = String(currentWeight, 1) + "g / " + String(targetWeight, 1) + "g";
+  String stable     = (abs(currentWeight - prevWeight) <= 2.0) ? "stable" : "pouring";
+  showOLED(translit(currentStepName), weightLine, stable);
 }
 
 // -------------------------------------------------------
 
 void setup() {
   Serial.begin(115200);
-
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
 
   Wire.begin();
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
@@ -255,6 +287,7 @@ void setup() {
 
 void loop() {
   loadCell.update();
+  unsigned long now = millis();
 
   switch (state) {
     case WAIT_RECIPE:
@@ -262,36 +295,46 @@ void loop() {
       break;
 
     case BREWING: {
-      float weight = loadCell.getData();
-
-      // Periodically push weight to server
-      if (millis() - lastWeightSend >= WEIGHT_INTERVAL_MS) {
-        lastWeightSend = millis();
-        sendWeight(weight);
+      // Clear confirmed message after 1500ms
+      if (justConfirmed && now - confirmedAt >= 1500) {
+        justConfirmed = false;
       }
 
-      // Button press = confirm step target reached
-      if (digitalRead(BUTTON_PIN) == LOW && millis() - lastButtonPress > DEBOUNCE_MS) {
-        lastButtonPress = millis();
-        confirmWeight(weight);
-
-        // Check if this was the last step
-        String resp = httpGet("/api/session");
-        StaticJsonDocument<512> doc;
-        if (deserializeJson(doc, resp) == DeserializationError::Ok) {
-          bool active = doc["active"] | true;
-          if (!active || doc["current_step"].isNull()) {
-            completeBrew();
-          } else {
-            completeStep();
-          }
-        }
+      // Weight read (200ms)
+      if (now - lastWeightRead >= WEIGHT_READ_MS) {
+        lastWeightRead = now;
+        float raw = loadCell.getData();
+        currentWeight = max(0.0f, raw);
       }
+
+      // Stability check (120ms)
+      if (now - lastStabilityCheck >= STABILITY_CHECK_MS) {
+        lastStabilityCheck = now;
+        if (!justConfirmed) checkStability();
+      }
+
+      // OLED update (200ms)
+      if (now - lastOledUpdate >= OLED_UPDATE_MS) {
+        lastOledUpdate = now;
+        updateBrewingOLED();
+      }
+
+      // Weight stream to server (400ms)
+      if (now - lastWeightStream >= WEIGHT_STREAM_MS) {
+        lastWeightStream = now;
+        streamWeight();
+      }
+
+      // Step poll (2000ms)
+      if (now - lastStepPoll >= STEP_POLL_MS) {
+        lastStepPoll = now;
+        pollStep();
+      }
+
       break;
     }
 
     case COMPLETE:
-      // Wait for new RFID scan to start fresh session
       if (rfid.PICC_IsNewCardPresent()) {
         state = WAIT_RECIPE;
         showOLED("Scan card", "to select", "recipe");
