@@ -1,6 +1,7 @@
 import { get, post } from './client.js';
 
 export const getSession       = ()       => get('/session/');
+export const getCurrentStep   = ()       => get('/recipe/current/');
 export const getCurrentWeight = ()       => get('/weight/current/');
 export const getRecipes       = ()       => get('/recipes/');
 export const getRecipe        = (id)     => get(`/recipes/${id}`);
