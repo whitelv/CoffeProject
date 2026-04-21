@@ -1,4 +1,5 @@
 import { completeBrew, selectRecipe, getRecipe } from '../api/brew.js';
+import { createSteamAnimation } from '../components/SteamAnimation.js';
 
 function navigate(path) {
   history.pushState(null, '', path);
@@ -50,16 +51,10 @@ export default function render() {
         margin-bottom: 2rem;
       }
 
-      .complete-hero__emoji {
-        font-size: 5rem;
-        display: block;
+      .complete-hero__steam {
+        display: flex;
+        justify-content: center;
         margin-bottom: 0.75rem;
-        animation: steam 2s ease-in-out infinite;
-      }
-
-      @keyframes steam {
-        0%, 100% { transform: translateY(0) scale(1); }
-        50%       { transform: translateY(-6px) scale(1.05); }
       }
 
       .complete-hero__title {
@@ -194,7 +189,7 @@ async function load() {
 
   container.innerHTML = `
     <div class="complete-hero">
-      <span class="complete-hero__emoji">☕</span>
+      <div id="complete-steam" class="complete-hero__steam"></div>
       <h1 class="complete-hero__title">Brew Complete!</h1>
       <p class="complete-hero__sub">Enjoy your ${recipeName}</p>
     </div>
@@ -222,6 +217,9 @@ async function load() {
     </div>
     <p class="complete-error" id="complete-error" style="display:none"></p>
   `;
+
+  const steamEl = document.getElementById('complete-steam');
+  if (steamEl) createSteamAnimation(steamEl, { size: 200 });
 
   document.getElementById('choose-recipe-btn').addEventListener('click', () => navigate('/'));
   document.getElementById('view-history-btn').addEventListener('click', () => navigate('/history'));

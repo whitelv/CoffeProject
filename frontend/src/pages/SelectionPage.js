@@ -1,4 +1,5 @@
 import { getRecipes, getSession } from '../api/brew.js';
+import { createSteamAnimation } from '../components/SteamAnimation.js';
 
 const RECIPE_EMOJI = {
   espresso:    '☕',
@@ -63,6 +64,12 @@ function navigate(path) {
 }
 
 export default function render() {
+  // Mount steam animation
+  setTimeout(() => {
+    const steamEl = document.getElementById('steam-idle');
+    if (steamEl) createSteamAnimation(steamEl, { size: 80 });
+  }, 0);
+
   // Mount shell immediately, load recipes async
   setTimeout(async () => {
     const grid = document.getElementById('recipe-grid');
@@ -89,6 +96,8 @@ export default function render() {
       </header>
 
       <p class="selection-subtitle">Scan your card or choose a recipe</p>
+
+      <div id="steam-idle" class="steam-idle"></div>
 
       <div id="recipe-grid" class="recipe-grid">
         ${skeletonCards()}
@@ -122,8 +131,14 @@ export default function render() {
 
       .selection-subtitle {
         color: var(--color-text-muted);
-        margin-bottom: 1.5rem;
+        margin-bottom: 0.75rem;
         font-size: 0.95rem;
+      }
+
+      .steam-idle {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 1.25rem;
       }
 
       .recipe-grid {
