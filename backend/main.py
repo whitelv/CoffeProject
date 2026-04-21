@@ -1,8 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from database import recipes, rfid_mappings
-from models import Recipe, RfidMapping, RfidMappingUpdate, RfidPayload
+from datetime import datetime
+
+from database import recipes, rfid_mappings, brew_sessions
+from models import Recipe, RfidMapping, RfidMappingUpdate, RfidPayload, WeightPayload, BrewSession, BrewStepLog
 
 app = FastAPI(title="Coffee Brew API")
 
@@ -19,6 +21,7 @@ current_session: dict | None = None
 live_weight: float = 0.0
 oled_message: str = ""
 rfid_tag: str | None = None
+step_logs: list[dict] = []
 
 
 def fix_id(doc: dict) -> dict:
@@ -140,3 +143,107 @@ async def select_recipe(body: RfidPayload):
         "first_step": first_step["name"] if first_step else "",
         "target_weight_g": first_step["target_weight_g"] if first_step else 0,
     }
+
+
+# --- Brew session & step management ---
+
+@app.get("/session/")
+async def get_session():
+    if not current_session:
+        return {"active": False}
+
+    recipe = await recipes.find_one({"id": current_session["recipe_id"]})
+    total = len(recipe["steps"]) if recipe else 0
+    step_index = current_session["step_index"]
+
+    return {
+        **current_session,
+        "recipe": fix_id(recipe) if recipe else None,
+        "total_steps": total,
+        "complete": step_index >= total,
+    }
+
+
+@app.get("/recipe/current/")
+async def get_current_step():
+    if not current_session:
+        raise HTTPException(status_code=404, detail="No active brew session")
+
+    recipe = await recipes.find_one({"id": current_session["recipe_id"]})
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Session recipe not found")
+
+    steps = recipe.get("steps", [])
+    step_index = current_session["step_index"]
+
+    if step_index >= len(steps):
+        return {"complete": True}
+
+    step = steps[step_index]
+    return {
+        "complete": False,
+        "name": step["name"],
+        "instruction": step["instruction"],
+        "target_weight_g": step["target_weight_g"],
+        "step_index": step_index,
+        "total_steps": len(steps),
+    }
+
+
+@app.post("/step/complete/")
+async def complete_step(body: WeightPayload):
+    global current_session, oled_message
+
+    if not current_session:
+        raise HTTPException(status_code=404, detail="No active brew session")
+
+    recipe = await recipes.find_one({"id": current_session["recipe_id"]})
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Session recipe not found")
+
+    steps = recipe.get("steps", [])
+    step_index = current_session["step_index"]
+
+    if step_index < len(steps):
+        step = steps[step_index]
+        step_logs.append({
+            "step_name": step["name"],
+            "target_weight_g": step["target_weight_g"],
+            "actual_weight_g": body.weight,
+            "completed_at": datetime.utcnow().isoformat(),
+        })
+
+    current_session["step_index"] = step_index + 1
+    new_index = current_session["step_index"]
+    is_complete = new_index >= len(steps)
+
+    if not is_complete:
+        next_step = steps[new_index]
+        oled_message = f"{recipe['name']} / {next_step['name']}"
+    else:
+        oled_message = f"{recipe['name']} / Done"
+
+    return {"step_index": new_index, "complete": is_complete}
+
+
+@app.post("/brew/complete/")
+async def complete_brew():
+    global current_session, oled_message, step_logs
+
+    if not current_session:
+        raise HTTPException(status_code=404, detail="No active brew session")
+
+    session_doc = BrewSession(
+        recipe_id=current_session["recipe_id"],
+        recipe_name=current_session["recipe_name"],
+        steps=[BrewStepLog(**log) for log in step_logs],
+        completed_at=datetime.utcnow(),
+        completed=True,
+    )
+    await brew_sessions.insert_one(session_doc.model_dump())
+
+    current_session = None
+    oled_message = ""
+    step_logs = []
+
+    return {"ok": True}
