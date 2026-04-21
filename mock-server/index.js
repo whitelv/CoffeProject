@@ -97,6 +97,22 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, session);
   }
 
+  if (req.method === 'GET' && url === '/recipe/current/') {
+    if (!session.active) return send(res, 404, { error: 'No active session' });
+    const recipe = RECIPES.find(r => r.id === session.recipe_id) ?? RECIPES[0];
+    const steps  = recipe.steps ?? [];
+    if (session.step >= steps.length) return send(res, 200, { complete: true });
+    const step = steps[session.step];
+    return send(res, 200, {
+      complete: false,
+      name: step.name,
+      instruction: step.instruction,
+      target_weight_g: step.target_weight_g,
+      step_index: session.step,
+      total_steps: steps.length,
+    });
+  }
+
   if (req.method === 'POST' && url === '/recipe/select/') {
     const body = await readBody(req);
     const recipeId = body.id ?? body.uid ?? body.rfid ?? null;
