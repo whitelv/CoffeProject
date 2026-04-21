@@ -85,8 +85,11 @@ export default function render() {
     }
   }, 0);
 
-  // Start RFID session polling
-  setTimeout(() => startRfidPolling(navigate), 0);
+  // Start RFID session polling — stop it when navigating away
+  setTimeout(() => {
+    const interval = startRfidPolling(navigate);
+    window.addEventListener('popstate', () => clearInterval(interval), { once: true });
+  }, 0);
 
   return `
     <div class="selection-page">
