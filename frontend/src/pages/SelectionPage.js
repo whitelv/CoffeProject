@@ -44,15 +44,21 @@ function recipeCard(recipe) {
 }
 
 function startRfidPolling(navigate) {
-  let prevActive = false;
+  let prevActive = null; // null = not yet primed
   const interval = setInterval(async () => {
     try {
       const session = await getSession();
-      if (session.active && session.recipe_id && !prevActive) {
+      const active = !!(session.active && session.recipe_id);
+      if (prevActive === null) {
+        // Prime on first tick — don't redirect for already-active sessions
+        prevActive = active;
+        return;
+      }
+      if (active && !prevActive) {
         clearInterval(interval);
         navigate('/brew');
       }
-      prevActive = !!session.active;
+      prevActive = active;
     } catch (_) { /* ignore */ }
   }, 2000);
   return interval;
