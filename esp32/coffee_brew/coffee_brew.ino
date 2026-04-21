@@ -50,7 +50,7 @@ const unsigned long WEIGHT_INTERVAL_MS = 500;
 
 // -------------------------------------------------------
 
-void showOLED(const String& line1, const String& line2 = "") {
+void showOLED(const String& line1, const String& line2 = "", const String& line3 = "") {
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
@@ -59,6 +59,10 @@ void showOLED(const String& line1, const String& line2 = "") {
   if (line2.length() > 0) {
     display.setCursor(0, 16);
     display.println(line2);
+  }
+  if (line3.length() > 0) {
+    display.setCursor(0, 32);
+    display.println(line3);
   }
   display.display();
 }
@@ -99,9 +103,25 @@ String httpPost(const String& path, const String& payload) {
   return body;
 }
 
+// Returns HTTP status code; body written to outBody.
+int httpPostWithCode(const String& path, const String& payload, String& outBody) {
+  HTTPClient http;
+  http.begin(serverURL + path);
+  http.addHeader("Content-Type", "application/json");
+  int code = http.POST(payload);
+  outBody = (code > 0) ? http.getString() : "";
+  http.end();
+  return code;
+}
+
 // -------------------------------------------------------
 
 void handleRFID() {
+  if (WiFi.status() != WL_CONNECTED) {
+    showOLED("No WiFi", "Check", "connection");
+    return;
+  }
+
   if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) return;
 
   String uid = "";
@@ -113,12 +133,21 @@ void handleRFID() {
   rfid.PICC_HaltA();
 
   StaticJsonDocument<64> req;
-  req["rfid"] = uid;
+  req["uid"] = uid;
   String payload;
   serializeJson(req, payload);
 
-  String resp = httpPost("/api/recipe/select", payload);
-  if (resp.length() == 0) {
+  String resp;
+  int code = httpPostWithCode("/recipe/select/", payload, resp);
+
+  if (code == 404) {
+    showOLED("Unknown", "card", "try again");
+    delay(2000);
+    showOLED("Scan card", "to select", "recipe");
+    return;
+  }
+
+  if (code <= 0 || resp.length() == 0) {
     showOLED("Server error");
     return;
   }
@@ -129,9 +158,14 @@ void handleRFID() {
     return;
   }
 
+  String recipeName = doc["name"] | "";
+  String firstStep  = doc["first_step"] | "";
+
   currentRecipeId = doc["id"] | "";
   currentStep     = 0;
   targetWeight    = 0.0;
+
+  showOLED(translit(recipeName), "Step 1", translit(firstStep));
 
   fetchStep();
   state = BREWING;
@@ -214,7 +248,7 @@ void setup() {
   }
   Serial.println("\nWiFi connected: " + WiFi.localIP().toString());
 
-  showOLED("Ready", "Scan RFID card");
+  showOLED("Scan card", "to select", "recipe");
 }
 
 // -------------------------------------------------------
@@ -260,7 +294,7 @@ void loop() {
       // Wait for new RFID scan to start fresh session
       if (rfid.PICC_IsNewCardPresent()) {
         state = WAIT_RECIPE;
-        showOLED("Ready", "Scan RFID card");
+        showOLED("Scan card", "to select", "recipe");
       }
       break;
   }
