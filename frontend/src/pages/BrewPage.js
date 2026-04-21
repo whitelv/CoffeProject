@@ -1,6 +1,7 @@
 import { getSession, getCurrentStep, getCurrentWeight } from '../api/brew.js';
 import { createPoller } from '../hooks/usePolling.js';
 import { createWeightBar } from '../components/WeightBar.js';
+import { createPourAnimation } from '../components/PourAnimation.js';
 
 function navigate(path) {
   history.pushState(null, '', path);
@@ -45,7 +46,8 @@ function stepCard(step) {
 
 
 export default function render() {
-  let stepPoller, weightPoller, weightBar;
+  let stepPoller, weightPoller, weightBar, pourAnim;
+  let lastWeight = 0;
 
   setTimeout(async () => {
     try {
@@ -64,6 +66,7 @@ export default function render() {
       stepPoller?.stop();
       weightPoller?.stop();
       weightBar?.destroy();
+      pourAnim?.destroy();
     }, { once: true });
   }, 0);
 
@@ -71,6 +74,7 @@ export default function render() {
     <div class="brew-page">
       <div id="brew-progress-wrap"></div>
       <div id="brew-step-wrap"><div class="brew-loading">Loading brew…</div></div>
+      <div id="brew-pour-wrap"></div>
       <div id="brew-weight-wrap"></div>
     </div>
 
@@ -137,6 +141,12 @@ async function refreshStep() {
     }
     weightWrap.dataset.target = data.target_weight_g;
   }
+
+  const pourWrap = document.getElementById('brew-pour-wrap');
+  if (pourWrap && !pourAnim) {
+    pourAnim = createPourAnimation(pourWrap);
+    pourAnim.update({ fillPercent: 0, isPouring: false });
+  }
 }
 
 async function refreshWeight() {
@@ -150,5 +160,10 @@ async function refreshWeight() {
   if (!weightWrap || !weightBar) return;
 
   const target = parseFloat(weightWrap.dataset.target ?? 0);
+  const isPouring = w - lastWeight > 0.5;
+  const fillPercent = target > 0 ? Math.min(100, (w / target) * 100) : 0;
+  lastWeight = w;
+
   weightBar.update({ currentWeight: w, targetWeight: target, isStable: isStable(w) });
+  pourAnim?.update({ fillPercent, isPouring });
 }
