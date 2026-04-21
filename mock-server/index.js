@@ -5,6 +5,7 @@ const PORT = 8001;
 let weight = 0;
 let oled = { line1: '', line2: '' };
 let session = { active: false, recipe_id: null, step: 0 };
+let stepLogs = [];
 
 setInterval(() => {
   if (session.active && weight < 36) {
@@ -62,6 +63,11 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && url === '/weight/confirmed/') {
     const body = await readBody(req);
     console.log('confirmed weight:', body.weight);
+    const recipe = RECIPES.find(r => r.id === session.recipe_id);
+    const step = recipe?.steps?.[session.step];
+    if (step) {
+      stepLogs.push({ step_name: step.name, target_weight_g: step.target_weight_g, actual_weight_g: body.weight ?? weight });
+    }
     return send(res, 200, { ok: true });
   }
 
@@ -118,6 +124,7 @@ const server = http.createServer(async (req, res) => {
     const recipeId = body.id ?? body.uid ?? body.rfid ?? null;
     const recipe = RECIPES.find(r => r.id === recipeId) ?? RECIPES[0];
     session = { active: true, recipe_id: recipe.id, step: 0 };
+    stepLogs = [];
     weight = 0;
     return send(res, 200, {
       id: recipe.id,
@@ -134,7 +141,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'POST' && url === '/brew/complete/') {
     session.active = false;
-    return send(res, 200, { ok: true, session });
+    return send(res, 200, { ok: true, session, step_logs: stepLogs });
   }
 
   send(res, 404, { error: 'not found' });
