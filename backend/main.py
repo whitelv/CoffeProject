@@ -1,3 +1,5 @@
+from bson import ObjectId
+from bson.errors import InvalidId
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -279,7 +281,6 @@ async def post_confirmed_weight(body: WeightPayload):
     if step_index < len(steps):
         target = steps[step_index]["target_weight_g"]
         if abs(body.weight - target) <= 5.0:
-            # Reuse complete_step logic inline to avoid circular call issues
             step = steps[step_index]
             step_logs.append({
                 "step_name": step["name"],
@@ -318,3 +319,31 @@ async def get_oled():
 async def post_oled(body: OledPayload):
     oled_state.update({"line1": body.line1, "line2": body.line2, "line3": body.line3, "updated": True})
     return {"ok": True}
+
+
+# --- Brew history ---
+
+@app.get("/brews/history/")
+async def list_brew_history():
+    result = []
+    async for doc in brew_sessions.find().sort("completed_at", -1).limit(50):
+        result.append(fix_id(doc))
+    return result
+
+
+@app.get("/brews/history/{session_id}")
+async def get_brew_session(session_id: str):
+    try:
+        oid = ObjectId(session_id)
+    except InvalidId:
+        raise HTTPException(status_code=404, detail="Brew session not found")
+    doc = await brew_sessions.find_one({"_id": oid})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Brew session not found")
+    return fix_id(doc)
+
+
+@app.delete("/brews/history/")
+async def clear_brew_history():
+    await brew_sessions.delete_many({})
+    return {"message": "History cleared"}
