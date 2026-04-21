@@ -24,13 +24,30 @@ function readBody(req) {
 
 function send(res, status, body) {
   const json = JSON.stringify(body);
-  res.writeHead(status, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(json) });
+  res.writeHead(status, {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(json),
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  });
   res.end(json);
+}
+
+function handleOptions(res) {
+  res.writeHead(204, {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  });
+  res.end();
 }
 
 const server = http.createServer(async (req, res) => {
   const url = req.url.replace(/\/?$/, '/').replace(/\/+/g, '/');
   console.log(`${req.method} ${url}`);
+
+  if (req.method === 'OPTIONS') return handleOptions(res);
 
   if (req.method === 'GET' && url === '/weight/current/') {
     return send(res, 200, { weight });
@@ -58,15 +75,40 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, oled);
   }
 
+  const RECIPES = [
+    { id: 'espresso',      name: 'Espresso',     description: 'A concentrated shot of coffee brewed under pressure.', dose_g: 18, brew_time: '25s',   grind_size: 'Fine',        steps: [{ name: 'Tamp',   instruction: 'Tamp grounds evenly', target_weight_g: 36 }] },
+    { id: 'v60',           name: 'V60',           description: 'A clean, bright pour-over brew with clarity of flavour.', dose_g: 15, brew_time: '3 min',  grind_size: 'Medium-fine', steps: [{ name: 'Bloom',  instruction: 'Pour 50g, wait 30s',  target_weight_g: 50 }, { name: 'Pour', instruction: 'Pour remaining 200g', target_weight_g: 200 }] },
+    { id: 'french-press',  name: 'French Press',  description: 'Full-bodied and rich, steeped for full immersion.', dose_g: 30, brew_time: '4 min',  grind_size: 'Coarse',      steps: [{ name: 'Steep',  instruction: 'Add 500g water',      target_weight_g: 500 }] },
+    { id: 'aeropress',     name: 'AeroPress',     description: 'Versatile and smooth with low acidity.', dose_g: 17, brew_time: '2 min',  grind_size: 'Medium',      steps: [{ name: 'Brew',   instruction: 'Pour 220g water',     target_weight_g: 220 }] },
+    { id: 'cold-brew',     name: 'Cold Brew',     description: 'Smooth, sweet cold concentrate steeped overnight.', dose_g: 80, brew_time: '12 hr',  grind_size: 'Extra coarse',steps: [{ name: 'Steep',  instruction: 'Add 1000g cold water', target_weight_g: 1000 }] },
+  ];
+
+  if (req.method === 'GET' && url === '/recipes/') {
+    return send(res, 200, RECIPES);
+  }
+
+  const recipeMatch = url.match(/^\/recipes\/([^/]+)\/$/);
+  if (req.method === 'GET' && recipeMatch) {
+    const recipe = RECIPES.find(r => r.id === recipeMatch[1]);
+    return recipe ? send(res, 200, recipe) : send(res, 404, { error: 'not found' });
+  }
+
   if (req.method === 'GET' && url === '/session/') {
     return send(res, 200, session);
   }
 
   if (req.method === 'POST' && url === '/recipe/select/') {
     const body = await readBody(req);
-    session = { active: true, recipe_id: body.rfid ?? body.id ?? null, step: 0 };
+    const recipeId = body.id ?? body.uid ?? body.rfid ?? null;
+    const recipe = RECIPES.find(r => r.id === recipeId) ?? RECIPES[0];
+    session = { active: true, recipe_id: recipe.id, step: 0 };
     weight = 0;
-    return send(res, 200, session);
+    return send(res, 200, {
+      id: recipe.id,
+      name: recipe.name,
+      first_step: recipe.steps[0]?.name ?? '',
+      target_weight_g: recipe.steps[0]?.target_weight_g ?? 0,
+    });
   }
 
   if (req.method === 'POST' && url === '/step/complete/') {
