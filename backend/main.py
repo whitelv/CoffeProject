@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 
 from database import recipes, rfid_mappings, brew_sessions
-from models import Recipe, RfidMapping, RfidMappingUpdate, RfidPayload, WeightPayload, BrewSession, BrewStepLog
+from models import Recipe, RfidMapping, RfidMappingUpdate, RfidPayload, WeightPayload, OledPayload, BrewSession, BrewStepLog
 
 app = FastAPI(title="Coffee Brew API")
 
@@ -24,6 +24,7 @@ live_weight: float = 0.0
 oled_message: str = ""
 rfid_tag: str | None = None
 step_logs: list[dict] = []
+oled_state: dict = {"line1": "", "line2": "", "line3": "", "updated": False}
 
 
 def fix_id(doc: dict) -> dict:
@@ -248,6 +249,75 @@ async def complete_brew():
     oled_message = ""
     step_logs = []
 
+    return {"ok": True}
+
+
+# --- Live weight endpoints ---
+
+@app.post("/weight/current/")
+async def post_weight(body: WeightPayload):
+    global live_weight
+    live_weight = body.weight
+    return {"ok": True, "active": current_session is not None}
+
+
+@app.get("/weight/current/")
+async def get_weight():
+    return {"weight": live_weight}
+
+
+@app.post("/weight/confirmed/")
+async def post_confirmed_weight(body: WeightPayload):
+    if not current_session:
+        return {"ok": True}
+
+    recipe = await recipes.find_one({"id": current_session["recipe_id"]})
+    if not recipe:
+        return {"ok": True}
+
+    steps = recipe.get("steps", [])
+    step_index = current_session["step_index"]
+
+    if step_index < len(steps):
+        target = steps[step_index]["target_weight_g"]
+        if abs(body.weight - target) <= 5.0:
+            step = steps[step_index]
+            step_logs.append({
+                "step_name": step["name"],
+                "target_weight_g": step["target_weight_g"],
+                "actual_weight_g": body.weight,
+                "completed_at": datetime.utcnow().isoformat(),
+            })
+            current_session["step_index"] = step_index + 1
+            new_index = current_session["step_index"]
+            if new_index < len(steps):
+                next_step = steps[new_index]
+                oled_state.update({"line1": recipe["name"], "line2": next_step["name"], "line3": "", "updated": True})
+            else:
+                oled_state.update({"line1": recipe["name"], "line2": "Done!", "line3": "", "updated": True})
+
+    return {"ok": True}
+
+
+# --- OLED endpoints ---
+
+@app.get("/oled/")
+async def get_oled():
+    if not oled_state["updated"]:
+        return {"updated": False, "line1": "", "line2": "", "line3": ""}
+    payload = {
+        "updated": True,
+        "line1": oled_state["line1"],
+        "line2": oled_state["line2"],
+        "line3": oled_state["line3"],
+    }
+    oled_state["updated"] = False
+    return payload
+
+
+@app.post("/oled/")
+async def post_oled(body: OledPayload):
+    oled_state.update({"line1": body.line1, "line2": body.line2, "line3": body.line3, "updated": True})
     return {"ok": True}
 
 
