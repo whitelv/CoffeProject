@@ -325,6 +325,11 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, [...brewHistory]);
   }
 
+  if (req.method === 'DELETE' && url === '/brews/history/') {
+    brewHistory.length = 0;
+    return send(res, 200, { ok: true });
+  }
+
   send(res, 404, { error: 'not found' });
 });
 

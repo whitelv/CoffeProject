@@ -1,5 +1,5 @@
 function getBaseUrl() {
-  return localStorage.getItem('apiUrl') || import.meta.env.VITE_API_URL || '';
+  return localStorage.getItem('brew_api_url') || import.meta.env.VITE_API_URL || '';
 }
 
 async function handleResponse(res) {
@@ -20,4 +20,8 @@ export function post(path, body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   }).then(handleResponse);
+}
+
+export function del(path) {
+  return fetch(`${getBaseUrl()}${path}`, { method: 'DELETE' }).then(handleResponse);
 }

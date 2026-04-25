@@ -1,4 +1,4 @@
-import { get, post } from './client.js';
+import { get, post, del } from './client.js';
 
 export const getSession       = ()       => get('/session/');
 export const getCurrentStep   = ()       => get('/recipe/current/');
@@ -12,3 +12,4 @@ export const getHistory       = ()       => get('/brews/history/');
 export const getOled          = ()       => get('/oled/');
 export const postWeight       = (weight) => post('/weight/current/', { weight });
 export const postConfirmedWeight = (weight) => post('/weight/confirmed/', { weight });
+export const clearHistory        = ()       => del('/brews/history/');
