@@ -6,6 +6,16 @@ const RECIPE_EMOJI = {
   'french-press': '🫙',
   aeropress:     '💨',
   'cold-brew':   '🧊',
+  latte:         '🥛',
+  cappuccino:    '☁️',
+};
+
+const STEP_META = {
+  prep:  { icon: '📋', label: 'Prep',  color: '#b5a07a' },
+  grind: { icon: '⚙️', label: 'Grind', color: '#8d6e63' },
+  pour:  { icon: '💧', label: 'Pour',  color: '#5bb8e8' },
+  milk:  { icon: '🥛', label: 'Milk',  color: '#a0c4ff' },
+  wait:  { icon: '⏱️', label: 'Wait',  color: '#ffd6a5' },
 };
 
 function navigate(path) {
@@ -108,62 +118,101 @@ export default function render({ id } = {}) {
       .steps-title {
         font-size: 1rem;
         font-weight: 600;
-        margin-bottom: 0.75rem;
+        margin-bottom: 1rem;
       }
 
-      .steps-list {
-        list-style: none;
+      .steps-guide {
         display: flex;
         flex-direction: column;
-        gap: 0.6rem;
         margin-bottom: 2.5rem;
       }
 
-      .step-item {
+      .step-row {
         display: flex;
-        align-items: flex-start;
         gap: 0.75rem;
-        background: var(--color-surface);
-        border: 1px solid var(--color-border);
-        border-radius: 10px;
-        padding: 0.85rem 1rem;
+        align-items: stretch;
       }
 
-      .step-num {
-        min-width: 1.6rem;
-        height: 1.6rem;
+      .step-spine {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        flex-shrink: 0;
+        width: 2.4rem;
+      }
+
+      .step-icon-wrap {
+        width: 2.4rem;
+        height: 2.4rem;
         border-radius: 50%;
-        background: var(--color-primary);
-        color: var(--color-bg);
-        font-size: 0.75rem;
-        font-weight: 700;
         display: flex;
         align-items: center;
         justify-content: center;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+        border: 2px solid var(--color-border);
+        background: var(--color-surface);
       }
 
-      .step-body { flex: 1; }
-
-      .step-name {
-        font-weight: 600;
-        font-size: 0.95rem;
+      .step-connector {
+        flex: 1;
+        width: 2px;
+        background: var(--color-border);
+        margin: 0.2rem 0;
+        min-height: 1rem;
       }
 
-      .step-instruction {
-        font-size: 0.85rem;
-        color: var(--color-text-muted);
-        margin-top: 0.15rem;
+      .step-card-guide {
+        flex: 1;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 0.9rem 1rem;
+        margin-bottom: 0.5rem;
       }
 
-      .step-weight {
-        font-size: 0.75rem;
+      .step-card-guide__header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.4rem;
+      }
+
+      .step-type-badge {
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
         padding: 0.15rem 0.5rem;
         border-radius: 999px;
-        background: var(--color-bg);
-        border: 1px solid var(--color-border);
+        color: #fff;
+      }
+
+      .step-card-guide__name {
+        font-weight: 700;
+        font-size: 1rem;
+      }
+
+      .step-card-guide__instruction {
+        font-size: 0.88rem;
         color: var(--color-text-muted);
-        white-space: nowrap;
-        align-self: center;
+        line-height: 1.5;
+        margin-bottom: 0.6rem;
+      }
+
+      .step-card-guide__measure {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--color-primary);
+      }
+
+      .step-card-guide__measure-label {
+        font-size: 0.75rem;
+        color: var(--color-text-muted);
+        font-weight: 400;
       }
 
       .start-btn {
@@ -269,19 +318,36 @@ async function loadRecipe(id) {
       </div>
     </div>
 
-    <h2 class="steps-title">Steps</h2>
-    <ol class="steps-list">
-      ${steps.map((step, i) => `
-        <li class="step-item">
-          <span class="step-num">${i + 1}</span>
-          <div class="step-body">
-            <div class="step-name">${step.name}</div>
-            <div class="step-instruction">${step.instruction}</div>
+    <h2 class="steps-title">Step-by-step guide</h2>
+    <div class="steps-guide">
+      ${steps.map((step, i) => {
+        const meta = STEP_META[step.type] ?? STEP_META.pour;
+        const isLast = i === steps.length - 1;
+        let measureHtml = '';
+        if (step.type === 'wait' && step.duration_s != null) {
+          measureHtml = `<span class="step-card-guide__measure">⏱ ${step.duration_s}s <span class="step-card-guide__measure-label">wait</span></span>`;
+        } else if (step.target_weight_g != null) {
+          const unit = step.type === 'milk' ? 'milk' : step.type === 'grind' ? 'coffee' : 'water';
+          measureHtml = `<span class="step-card-guide__measure">${meta.icon} ${step.target_weight_g}g <span class="step-card-guide__measure-label">${unit}</span></span>`;
+        }
+        return `
+          <div class="step-row">
+            <div class="step-spine">
+              <div class="step-icon-wrap" style="border-color:${meta.color}">${meta.icon}</div>
+              ${!isLast ? '<div class="step-connector"></div>' : ''}
+            </div>
+            <div class="step-card-guide">
+              <div class="step-card-guide__header">
+                <span class="step-type-badge" style="background:${meta.color}">${meta.label}</span>
+                <span class="step-card-guide__name">${step.name}</span>
+              </div>
+              <div class="step-card-guide__instruction">${step.instruction.replace(/\n/g, '<br>')}</div>
+              ${measureHtml}
+            </div>
           </div>
-          <span class="step-weight">${step.target_weight_g}g</span>
-        </li>
-      `).join('')}
-    </ol>
+        `;
+      }).join('')}
+    </div>
 
     <button class="start-btn" id="start-brew-btn">Start Brew</button>
     <p class="detail-error" id="start-error" style="display:none"></p>
