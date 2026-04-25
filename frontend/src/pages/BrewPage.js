@@ -16,6 +16,7 @@ let stepStartWeight = null;
 let currentStepType = 'pour';
 let prevStepType    = null;
 let timerInterval   = null;
+let brewActive      = false;
 
 function isStable(w) {
   if (weightHistory.length < 5 || w < 5) return false;
@@ -71,6 +72,7 @@ function renderTimer(durationS) {
 }
 
 export default function render() {
+  brewActive = true;
   weightBar = null;
   pourAnim  = null;
   lastWeight = 0;
@@ -80,32 +82,36 @@ export default function render() {
   timerInterval = null;
   let stepPoller, weightPoller;
 
+  // Register cleanup immediately so it fires even if navigation happens before setTimeout
+  window.addEventListener('popstate', () => {
+    brewActive = false;
+    stepPoller?.stop();
+    weightPoller?.stop();
+    weightBar?.destroy();
+    pourAnim?.destroy();
+    clearInterval(timerInterval);
+  }, { once: true });
+
   setTimeout(async () => {
+    if (!brewActive) return;
     try {
       const session = await getSession();
-      if (!session.active) { navigate('/'); return; }
-    } catch { navigate('/'); return; }
+      if (!session.active) { if (brewActive) navigate('/'); return; }
+    } catch { if (brewActive) navigate('/'); return; }
 
     await refreshStep();
+    if (!brewActive) return;
 
     stepPoller  = createPoller(refreshStep, 1000);
     weightPoller = createPoller(refreshWeight, 400);
     stepPoller.start();
     weightPoller.start();
-
-    window.addEventListener('popstate', () => {
-      stepPoller?.stop();
-      weightPoller?.stop();
-      weightBar?.destroy();
-      pourAnim?.destroy();
-      clearInterval(timerInterval);
-    }, { once: true });
   }, 0);
 
   return `
     <div class="brew-page">
       <div id="brew-progress-wrap"></div>
-      <div id="brew-step-wrap"><div class="brew-loading">Loading brew…</div></div>
+      <div id="brew-step-wrap" class="brew-step-wrap"><div class="brew-loading">Loading brew…</div></div>
       <div id="brew-pour-wrap"></div>
       <div id="brew-weight-wrap"></div>
       <div id="brew-timer-wrap"></div>
@@ -262,7 +268,7 @@ async function refreshStep() {
   let data;
   try { data = await getCurrentStep(); } catch { return; }
 
-  if (data.complete) { navigate('/complete'); return; }
+  if (data.complete) { if (brewActive) navigate('/complete'); return; }
 
   const progressWrap = document.getElementById('brew-progress-wrap');
   const stepWrap     = document.getElementById('brew-step-wrap');
@@ -272,9 +278,23 @@ async function refreshStep() {
 
   // Only re-render step card on step change (avoid flicker)
   if (stepWrap.dataset.stepIndex !== String(data.step_index)) {
+    // Exit animation (skip on initial render)
+    if (stepWrap.dataset.stepIndex !== undefined) {
+      stepWrap.classList.add('step-exit');
+      await new Promise(r => setTimeout(r, 400));
+    }
+
     stepWrap.dataset.stepIndex = data.step_index;
     progressWrap.innerHTML = progressBar(data.step_index, data.total_steps);
-    stepWrap.innerHTML     = stepCard(data);
+
+    // Enter animation
+    stepWrap.style.transition = 'none';
+    stepWrap.classList.remove('step-exit');
+    stepWrap.classList.add('step-enter');
+    stepWrap.innerHTML = stepCard(data);
+    stepWrap.offsetHeight; // force reflow
+    stepWrap.style.transition = '';
+    stepWrap.classList.remove('step-enter');
     prevStepType    = currentStepType;
     currentStepType = type;
 
