@@ -8,6 +8,16 @@
   --color-border: #3d2e1e;
 }
 
+[data-theme="light"] {
+  --color-bg: #faf7f4;
+  --color-surface: #ffffff;
+  --color-primary: #a0632a;
+  --color-primary-dark: #7a4a1e;
+  --color-text: #2a1f12;
+  --color-text-muted: #7a6a5a;
+  --color-border: #ddd0c0;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
