@@ -16,6 +16,7 @@ let stepStartWeight = null;
 let currentStepType = 'pour';
 let prevStepType    = null;
 let timerInterval   = null;
+let brewActive      = false;
 
 function isStable(w) {
   if (weightHistory.length < 5 || w < 5) return false;
@@ -71,6 +72,7 @@ function renderTimer(durationS) {
 }
 
 export default function render() {
+  brewActive = true;
   weightBar = null;
   pourAnim  = null;
   lastWeight = 0;
@@ -80,26 +82,30 @@ export default function render() {
   timerInterval = null;
   let stepPoller, weightPoller;
 
+  // Register cleanup immediately so it fires even if navigation happens before setTimeout
+  window.addEventListener('popstate', () => {
+    brewActive = false;
+    stepPoller?.stop();
+    weightPoller?.stop();
+    weightBar?.destroy();
+    pourAnim?.destroy();
+    clearInterval(timerInterval);
+  }, { once: true });
+
   setTimeout(async () => {
+    if (!brewActive) return;
     try {
       const session = await getSession();
-      if (!session.active) { navigate('/'); return; }
-    } catch { navigate('/'); return; }
+      if (!session.active) { if (brewActive) navigate('/'); return; }
+    } catch { if (brewActive) navigate('/'); return; }
 
     await refreshStep();
+    if (!brewActive) return;
 
     stepPoller  = createPoller(refreshStep, 1000);
     weightPoller = createPoller(refreshWeight, 400);
     stepPoller.start();
     weightPoller.start();
-
-    window.addEventListener('popstate', () => {
-      stepPoller?.stop();
-      weightPoller?.stop();
-      weightBar?.destroy();
-      pourAnim?.destroy();
-      clearInterval(timerInterval);
-    }, { once: true });
   }, 0);
 
   return `
@@ -262,7 +268,7 @@ async function refreshStep() {
   let data;
   try { data = await getCurrentStep(); } catch { return; }
 
-  if (data.complete) { navigate('/complete'); return; }
+  if (data.complete) { if (brewActive) navigate('/complete'); return; }
 
   const progressWrap = document.getElementById('brew-progress-wrap');
   const stepWrap     = document.getElementById('brew-step-wrap');
