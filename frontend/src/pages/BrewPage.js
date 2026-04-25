@@ -105,7 +105,7 @@ export default function render() {
   return `
     <div class="brew-page">
       <div id="brew-progress-wrap"></div>
-      <div id="brew-step-wrap"><div class="brew-loading">Loading brew…</div></div>
+      <div id="brew-step-wrap" class="brew-step-wrap"><div class="brew-loading">Loading brew…</div></div>
       <div id="brew-pour-wrap"></div>
       <div id="brew-weight-wrap"></div>
       <div id="brew-timer-wrap"></div>
@@ -272,9 +272,23 @@ async function refreshStep() {
 
   // Only re-render step card on step change (avoid flicker)
   if (stepWrap.dataset.stepIndex !== String(data.step_index)) {
+    // Exit animation (skip on initial render)
+    if (stepWrap.dataset.stepIndex !== undefined) {
+      stepWrap.classList.add('step-exit');
+      await new Promise(r => setTimeout(r, 400));
+    }
+
     stepWrap.dataset.stepIndex = data.step_index;
     progressWrap.innerHTML = progressBar(data.step_index, data.total_steps);
-    stepWrap.innerHTML     = stepCard(data);
+
+    // Enter animation
+    stepWrap.style.transition = 'none';
+    stepWrap.classList.remove('step-exit');
+    stepWrap.classList.add('step-enter');
+    stepWrap.innerHTML = stepCard(data);
+    stepWrap.offsetHeight; // force reflow
+    stepWrap.style.transition = '';
+    stepWrap.classList.remove('step-enter');
     prevStepType    = currentStepType;
     currentStepType = type;
 

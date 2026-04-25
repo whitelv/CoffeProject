@@ -23,7 +23,22 @@ async function resolve(path) {
 async function navigate(path) {
   const app = document.getElementById('app')
   const route = await resolve(path)
-  app.innerHTML = route ? route.render(route.params) : '<h1>404 — Page not found</h1>'
+  const newHtml = route ? route.render(route.params) : '<h1>404 — Page not found</h1>'
+
+  // Exit animation (skip on initial load when app is empty)
+  if (app.innerHTML.trim()) {
+    app.classList.add('page-exit')
+    await new Promise(r => setTimeout(r, 300))
+  }
+
+  // Swap content with transition disabled so enter state is set instantly
+  app.style.transition = 'none'
+  app.innerHTML = newHtml
+  app.classList.remove('page-exit')
+  app.classList.add('page-enter')
+  app.offsetHeight // force reflow
+  app.style.transition = ''
+  app.classList.remove('page-enter')
 }
 
 export function initRouter() {

@@ -1,5 +1,6 @@
 import { getRecipes, getSession } from '../api/brew.js';
 import { createSteamAnimation } from '../components/SteamAnimation.js';
+import { createSkeletonCard } from '../components/SkeletonCard.js';
 
 const RECIPE_EMOJI = {
   espresso:    '☕',
@@ -13,14 +14,8 @@ function recipeEmoji(id) {
   return RECIPE_EMOJI[id] || '☕';
 }
 
-function skeletonCards() {
-  return Array.from({ length: 3 }, () => `
-    <div class="recipe-card recipe-card--skeleton">
-      <div class="skeleton skeleton--emoji"></div>
-      <div class="skeleton skeleton--title"></div>
-      <div class="skeleton skeleton--pills"></div>
-    </div>
-  `).join('');
+function mountSkeletonCards(grid) {
+  for (let i = 0; i < 5; i++) grid.appendChild(createSkeletonCard());
 }
 
 function recipeCard(recipe) {
@@ -81,6 +76,8 @@ export default function render() {
     const grid = document.getElementById('recipe-grid');
     if (!grid) return;
 
+    mountSkeletonCards(grid);
+
     try {
       const recipes = await getRecipes();
       grid.innerHTML = recipes.length
@@ -108,9 +105,7 @@ export default function render() {
 
       <div id="steam-idle" class="steam-idle"></div>
 
-      <div id="recipe-grid" class="recipe-grid">
-        ${skeletonCards()}
-      </div>
+      <div id="recipe-grid" class="recipe-grid"></div>
     </div>
 
     <style>
