@@ -39,9 +39,149 @@ let brewHistory = [
   },
 ];
 
+const RECIPES = [
+  {
+    id: 'espresso', name: 'Espresso',
+    description: 'A concentrated shot of coffee brewed under pressure. Intense, rich, and the base for most milk drinks.',
+    dose_g: 18, brew_time: '~5 min', grind_size: 'Fine',
+    steps: [
+      { type: 'grind', name: 'Grind & Dose',
+        instruction: 'Place the portafilter on the scale.\nGrind directly into the portafilter until you hit the target weight.\nDistribute evenly, then tamp flat with firm pressure.',
+        target_weight_g: 18 },
+      { type: 'pour', name: 'Extract Espresso',
+        instruction: 'Start the machine and collect the shot.\nAim for 36 g output (2:1 ratio).\nIdeal extraction time: 25–30 sec.\nStop if it runs longer — the grind may be too fine.',
+        target_weight_g: 36 },
+    ],
+  },
+  {
+    id: 'v60', name: 'V60',
+    description: 'A clean, bright pour-over that highlights the delicate flavours of the coffee bean.',
+    dose_g: 15, brew_time: '~3 min', grind_size: 'Medium-fine',
+    steps: [
+      { type: 'prep', name: 'Set Up Filter',
+        instruction: 'Place a paper filter in the V60 and rinse with hot water — removes paper taste and preheats the brewer.\nDiscard the rinse water.\nPlace the V60 with server on the scale.' },
+      { type: 'grind', name: 'Grind & Dose',
+        instruction: 'Place the V60 on the scale (or a separate container).\nGrind directly in until you hit the target weight.\nMedium-fine texture — like coarse sand.',
+        target_weight_g: 15 },
+      { type: 'pour', name: 'Bloom',
+        instruction: 'Pour 50 g of water at 93°C in a slow spiral from centre outward.\nThis saturates all the grounds and releases CO₂ — you will see the coffee puff up.\nFresh coffee blooms more.',
+        target_weight_g: 50 },
+      { type: 'wait', name: 'Bloom Rest',
+        instruction: 'Let the bloom sit undisturbed.\nThe coffee will settle and crust slightly — that is normal.\nThis step lets CO₂ escape so the next pour extracts evenly.',
+        duration_s: 30 },
+      { type: 'pour', name: 'Main Pour',
+        instruction: 'Pour the remaining water in steady spirals.\nKeep the water level consistent — don\'t let it drain completely between pours.\nFinish by 2:30 min; total draw-down should complete by 3:00 min.',
+        target_weight_g: 200 },
+    ],
+  },
+  {
+    id: 'french-press', name: 'French Press',
+    description: 'Full-bodied and rich — an immersion brew that keeps the natural oils in the cup.',
+    dose_g: 30, brew_time: '~5 min', grind_size: 'Coarse',
+    steps: [
+      { type: 'prep', name: 'Preheat',
+        instruction: 'Pour hot water into the empty French Press to preheat it, then discard.\nThis keeps the brew temperature stable.' },
+      { type: 'grind', name: 'Grind & Dose',
+        instruction: 'Place the French Press (empty) or a bowl on the scale.\nGrind coarsely — like breadcrumbs — until you hit the target.\nAdd grounds to the press.',
+        target_weight_g: 30 },
+      { type: 'pour', name: 'Add Water',
+        instruction: 'Pour 500 g of water at 93–96°C over the grounds.\nEnsure all the coffee is saturated — stir gently once with a spoon.\nPlace the lid on top (plunger up) but do not press yet.',
+        target_weight_g: 500 },
+      { type: 'wait', name: 'Steep',
+        instruction: 'Leave it completely undisturbed.\n4 minutes is the sweet spot — longer = more bitter, shorter = weaker.\nAt the end, press the plunger down slowly and evenly.',
+        duration_s: 240 },
+    ],
+  },
+  {
+    id: 'aeropress', name: 'AeroPress',
+    description: 'Versatile, forgiving, and surprisingly smooth — great for beginners and coffee geeks alike.',
+    dose_g: 17, brew_time: '~2 min', grind_size: 'Medium',
+    steps: [
+      { type: 'prep', name: 'Set Up AeroPress',
+        instruction: 'Insert a paper filter in the cap and rinse with hot water.\nAssemble the AeroPress in inverted position and place on the scale.' },
+      { type: 'grind', name: 'Grind & Dose',
+        instruction: 'Grind to a medium texture — like table salt.\nDose directly into the inverted AeroPress chamber.',
+        target_weight_g: 17 },
+      { type: 'pour', name: 'Add Water',
+        instruction: 'Pour 220 g of water at 85–90°C (slightly cooler than boiling).\nStir gently 3–4 times to make sure all grounds are wet.\nSnap the cap on.',
+        target_weight_g: 220 },
+      { type: 'wait', name: 'Steep & Press',
+        instruction: 'Wait for 90 seconds total steep time.\nThen flip onto your cup and press slowly — 20–30 sec of steady pressure.\nStop when you hear a hiss — don\'t squeeze the last drops (they are bitter).',
+        duration_s: 90 },
+    ],
+  },
+  {
+    id: 'cold-brew', name: 'Cold Brew',
+    description: 'Smooth and naturally sweet — steeped cold overnight for zero bitterness.',
+    dose_g: 80, brew_time: '12–18 hr', grind_size: 'Extra coarse',
+    steps: [
+      { type: 'grind', name: 'Grind & Dose',
+        instruction: 'Place your jar or cold brew vessel on the scale.\nGrind very coarsely — like rough gravel.\nFiner grind = over-extraction after 12+ hours.',
+        target_weight_g: 80 },
+      { type: 'pour', name: 'Add Cold Water',
+        instruction: 'Pour 1000 g of cold or room-temperature water over the grounds.\nStir well to saturate all the coffee.\nCover and refrigerate.',
+        target_weight_g: 1000 },
+      { type: 'wait', name: 'Steep Overnight',
+        instruction: 'Steep in the fridge for 12–18 hours.\n12 hr = lighter and sweeter. 18 hr = stronger concentrate.\nWhen done, strain through a filter or fine mesh.\nServe over ice, dilute 1:1 with water or milk if it\'s concentrate.',
+        duration_s: 600 },
+    ],
+  },
+  {
+    id: 'latte', name: 'Latte',
+    description: 'A double espresso with velvety steamed milk — smooth, creamy, and mildly coffee-forward.',
+    dose_g: 18, brew_time: '~5 min', grind_size: 'Fine',
+    steps: [
+      { type: 'grind', name: 'Grind & Dose',
+        instruction: 'Place the portafilter on the scale.\nGrind directly into it until you hit the target weight.\nDistribute evenly, then tamp flat with firm pressure.',
+        target_weight_g: 18 },
+      { type: 'pour', name: 'Extract Espresso',
+        instruction: 'Pull a double shot into your cup.\nTarget: 36 g output in 25–30 sec.\nThe shot should be dark amber with a reddish-brown crema on top.',
+        target_weight_g: 36 },
+      { type: 'milk', name: 'Weigh Cold Milk',
+        instruction: 'Place your steaming pitcher on the scale.\nPour in cold whole milk — cold milk gives you more time to texture it.\nFill pitcher to about ⅓ full (leaves room for expansion).',
+        target_weight_g: 200 },
+      { type: 'wait', name: 'Steam Milk',
+        instruction: 'Submerge the steam wand just below the surface.\nFor 2–3 sec: keep the tip near the surface to stretch (introduce air) — you should hear a soft "chh" sound.\nThen submerge deeper and spin the milk in a whirlpool to heat to 60–65°C.\nGoal: smooth, glossy microfoam with no large bubbles.',
+        duration_s: 40 },
+      { type: 'pour', name: 'Pour Milk',
+        instruction: 'Tap the pitcher on the counter and swirl to break any bubbles.\nHold the cup at an angle and pour from low height in a steady stream through the crema.\nFinish with a small upward flick to create a simple latte art dot or heart.\nAim for ~1 cm foam layer on top.',
+        target_weight_g: 200 },
+    ],
+  },
+  {
+    id: 'cappuccino', name: 'Cappuccino',
+    description: 'Equal thirds espresso, steamed milk, and thick dry foam — bold and classic.',
+    dose_g: 18, brew_time: '~5 min', grind_size: 'Fine',
+    steps: [
+      { type: 'grind', name: 'Grind & Dose',
+        instruction: 'Place the portafilter on the scale.\nGrind directly into it until you hit the target weight.\nDistribute evenly, then tamp firmly and level.',
+        target_weight_g: 18 },
+      { type: 'pour', name: 'Extract Espresso',
+        instruction: 'Pull a double shot into a cappuccino cup (150–180 ml).\nTarget: 36 g output in 25–30 sec.\nStrong shot is important — milk will balance the intensity.',
+        target_weight_g: 36 },
+      { type: 'milk', name: 'Weigh Cold Milk',
+        instruction: 'Place your steaming pitcher on the scale.\nPour cold whole milk — less than a latte, cappuccino is drier.\nFill pitcher to just under ⅓.',
+        target_weight_g: 120 },
+      { type: 'wait', name: 'Steam Milk',
+        instruction: 'Keep the steam wand near the surface longer than for a latte — 4–6 sec of stretching.\nThis builds more foam volume.\nHeat to 60–65°C.\nThe milk should roughly double in volume and look thick and foamy, not liquid.',
+        duration_s: 35 },
+      { type: 'pour', name: 'Pour & Foam',
+        instruction: 'Pour the steamed milk, then spoon the thick foam on top to form a dome.\nThe cup should be ⅓ espresso, ⅓ steamed milk, ⅓ foam.\nDust with cocoa powder if desired.',
+        target_weight_g: 120 },
+    ],
+  },
+];
+
+let lastManualSet = 0;
+
 setInterval(() => {
-  if (session.active && weight < 36) {
-    weight = Math.min(36, +(weight + 2).toFixed(1));
+  if (!session.active) return;
+  if (Date.now() - lastManualSet < 3000) return;
+  const recipe = RECIPES.find(r => r.id === session.recipe_id);
+  const step = recipe?.steps?.[session.step];
+  const target = step?.target_weight_g ?? 0;
+  if (target > 0 && weight < target) {
+    weight = Math.min(target, +(weight + 2).toFixed(1));
   }
 }, 400);
 
@@ -88,7 +228,7 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'POST' && url === '/weight/current/') {
     const body = await readBody(req);
-    if (body.weight !== undefined) weight = body.weight;
+    if (body.weight !== undefined) { weight = body.weight; lastManualSet = Date.now(); }
     return send(res, 200, { weight });
   }
 
@@ -113,14 +253,6 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, oled);
   }
 
-  const RECIPES = [
-    { id: 'espresso',      name: 'Espresso',     description: 'A concentrated shot of coffee brewed under pressure.', dose_g: 18, brew_time: '25s',   grind_size: 'Fine',        steps: [{ name: 'Tamp',   instruction: 'Tamp grounds evenly', target_weight_g: 36 }] },
-    { id: 'v60',           name: 'V60',           description: 'A clean, bright pour-over brew with clarity of flavour.', dose_g: 15, brew_time: '3 min',  grind_size: 'Medium-fine', steps: [{ name: 'Bloom',  instruction: 'Pour 50g, wait 30s',  target_weight_g: 50 }, { name: 'Pour', instruction: 'Pour remaining 200g', target_weight_g: 200 }] },
-    { id: 'french-press',  name: 'French Press',  description: 'Full-bodied and rich, steeped for full immersion.', dose_g: 30, brew_time: '4 min',  grind_size: 'Coarse',      steps: [{ name: 'Steep',  instruction: 'Add 500g water',      target_weight_g: 500 }] },
-    { id: 'aeropress',     name: 'AeroPress',     description: 'Versatile and smooth with low acidity.', dose_g: 17, brew_time: '2 min',  grind_size: 'Medium',      steps: [{ name: 'Brew',   instruction: 'Pour 220g water',     target_weight_g: 220 }] },
-    { id: 'cold-brew',     name: 'Cold Brew',     description: 'Smooth, sweet cold concentrate steeped overnight.', dose_g: 80, brew_time: '12 hr',  grind_size: 'Extra coarse',steps: [{ name: 'Steep',  instruction: 'Add 1000g cold water', target_weight_g: 1000 }] },
-  ];
-
   if (req.method === 'GET' && url === '/recipes/') {
     return send(res, 200, RECIPES);
   }
@@ -143,9 +275,11 @@ const server = http.createServer(async (req, res) => {
     const step = steps[session.step];
     return send(res, 200, {
       complete: false,
+      type: step.type ?? 'pour',
       name: step.name,
       instruction: step.instruction,
-      target_weight_g: step.target_weight_g,
+      target_weight_g: step.target_weight_g ?? null,
+      duration_s: step.duration_s ?? null,
       step_index: session.step,
       total_steps: steps.length,
     });
