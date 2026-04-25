@@ -13,3 +13,7 @@ export const getOled          = ()       => get('/oled/');
 export const postWeight       = (weight) => post('/weight/current/', { weight });
 export const postConfirmedWeight = (weight) => post('/weight/confirmed/', { weight });
 export const clearHistory        = ()       => del('/brews/history/');
+export const getRfidMappings     = ()             => get('/rfid-mappings/');
+export const addRfidMapping      = (uid, recipe_id) => post('/rfid-mappings/', { uid, recipe_id });
+export const deleteRfidMapping   = (uid)          => del(`/rfid-mappings/${encodeURIComponent(uid)}/`);
+export const getLastRfid         = ()             => get('/rfid/last/');

@@ -118,6 +118,11 @@ export default function render() {
       </section>
 
       <section class="settings-card">
+        <h2 class="settings-card__heading">Admin</h2>
+        <a class="btn-secondary settings-admin-link" href="/admin/rfid">🪪 RFID Card Mappings</a>
+      </section>
+
+      <section class="settings-card">
         <h2 class="settings-card__heading">Data Management</h2>
         <button class="btn-danger" id="btn-clear-history">Clear Brew History</button>
         <p class="settings-status" id="status-history"></p>
@@ -260,6 +265,12 @@ export default function render() {
         font-size: 0.85rem;
         color: var(--color-text-muted);
         min-height: 1.2em;
+      }
+
+      .settings-admin-link {
+        display: block;
+        text-align: center;
+        text-decoration: none;
       }
     </style>
   `;

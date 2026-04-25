@@ -6,6 +6,11 @@ let weight = 0;
 let oled = { line1: '', line2: '' };
 let session = { active: false, recipe_id: null, step: 0 };
 let stepLogs = [];
+let rfidPending = null;
+let rfidMappings = [
+  { uid: 'CARD001', recipe_id: 'espresso' },
+  { uid: 'CARD002', recipe_id: 'v60' },
+];
 let brewHistory = [
   {
     id: 'mock-1',
@@ -327,6 +332,42 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'DELETE' && url === '/brews/history/') {
     brewHistory.length = 0;
+    return send(res, 200, { ok: true });
+  }
+
+  if (req.method === 'GET' && url === '/rfid/last/') {
+    const uid = rfidPending;
+    rfidPending = null;
+    return send(res, 200, { uid });
+  }
+
+  if (req.method === 'POST' && url === '/rfid/simulate/') {
+    const body = await readBody(req);
+    rfidPending = body.uid ?? null;
+    return send(res, 200, { ok: true });
+  }
+
+  if (req.method === 'GET' && url === '/rfid-mappings/') {
+    const list = rfidMappings.map(m => ({
+      ...m,
+      recipe_name: RECIPES.find(r => r.id === m.recipe_id)?.name ?? m.recipe_id,
+    }));
+    return send(res, 200, list);
+  }
+
+  if (req.method === 'POST' && url === '/rfid-mappings/') {
+    const body = await readBody(req);
+    const { uid, recipe_id } = body;
+    if (!uid) return send(res, 400, { error: 'uid required' });
+    if (rfidMappings.find(m => m.uid === uid)) return send(res, 409, { error: 'mapping already exists' });
+    rfidMappings.push({ uid, recipe_id });
+    return send(res, 200, { ok: true });
+  }
+
+  const rfidDeleteMatch = url.match(/^\/rfid-mappings\/([^/]+)\/?$/);
+  if (req.method === 'DELETE' && rfidDeleteMatch) {
+    const uid = decodeURIComponent(rfidDeleteMatch[1]);
+    rfidMappings = rfidMappings.filter(m => m.uid !== uid);
     return send(res, 200, { ok: true });
   }
 
